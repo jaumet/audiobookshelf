@@ -6,8 +6,8 @@
     <div v-if="loaded && !shelves.length && !search" class="w-full flex flex-col items-center justify-center py-12">
       <p class="text-center text-2xl mb-4 py-4">{{ $getString('MessageXLibraryIsEmpty', [libraryName]) }}</p>
       <div v-if="userIsAdminOrUp" class="flex">
-        <ui-btn to="/config" color="primary" class="w-52 mr-2">{{ $strings.ButtonConfigureScanner }}</ui-btn>
-        <ui-btn color="success" class="w-52" :loading="isScanningLibrary || tempIsScanning" @click="scan">{{ $strings.ButtonScanLibrary }}</ui-btn>
+        <ui-btn to="/config" color="bg-primary" class="w-52 mr-2">{{ $strings.ButtonConfigureScanner }}</ui-btn>
+        <ui-btn color="bg-success" class="w-52" :loading="isScanningLibrary || tempIsScanning" @click="scan">{{ $strings.ButtonScanLibrary }}</ui-btn>
       </div>
     </div>
     <div v-else-if="loaded && !shelves.length && search" class="w-full h-40 flex items-center justify-center">
@@ -17,7 +17,7 @@
     <div v-else-if="isAlternativeBookshelfView" class="w-full mb-24e">
       <template v-for="(shelf, index) in supportedShelves">
         <widgets-item-slider :shelf-id="shelf.id" :key="index + '.'" :items="shelf.entities" :continue-listening-shelf="shelf.id === 'continue-listening' || shelf.id === 'continue-reading'" :type="shelf.type" class="bookshelf-row pl-8e my-6e" @selectEntity="(payload) => selectEntity(payload, index)">
-          <p class="font-semibold text-gray-100">{{ $strings[shelf.labelStringKey] }}</p>
+          <h2 class="font-semibold text-gray-100">{{ $strings[shelf.labelStringKey] }}</h2>
         </widgets-item-slider>
       </template>
     </div>
@@ -214,6 +214,16 @@ export default {
           labelStringKey: 'LabelPodcasts',
           type: 'podcast',
           entities: this.results.podcasts.map((res) => res.libraryItem)
+        })
+      }
+
+      if (this.results.episodes?.length) {
+        shelves.push({
+          id: 'episodes',
+          label: 'Episodes',
+          labelStringKey: 'LabelEpisodes',
+          type: 'episode',
+          entities: this.results.episodes.map((res) => res.libraryItem)
         })
       }
 

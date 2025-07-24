@@ -6,9 +6,9 @@
           <div class="pt-4">
             <h2 class="font-semibold">{{ $strings.HeaderSettingsGeneral }}</h2>
           </div>
-          <div class="flex items-end py-2">
-            <ui-toggle-switch labeledBy="settings-store-cover-with-items" v-model="newServerSettings.storeCoverWithItem" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('storeCoverWithItem', val)" />
-            <ui-tooltip :text="$strings.LabelSettingsStoreCoversWithItemHelp">
+          <div role="article" :aria-label="$strings.LabelSettingsStoreCoversWithItemHelp" class="flex items-end py-2">
+            <ui-toggle-switch :label="$strings.LabelSettingsStoreCoversWithItem" v-model="newServerSettings.storeCoverWithItem" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('storeCoverWithItem', val)" />
+            <ui-tooltip aria-hidden="true" :text="$strings.LabelSettingsStoreCoversWithItemHelp">
               <p class="pl-4">
                 <span id="settings-store-cover-with-items">{{ $strings.LabelSettingsStoreCoversWithItem }}</span>
                 <span class="material-symbols icon-text">info</span>
@@ -16,9 +16,9 @@
             </ui-tooltip>
           </div>
 
-          <div class="flex items-center py-2">
-            <ui-toggle-switch labeledBy="settings-store-metadata-with-items" v-model="newServerSettings.storeMetadataWithItem" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('storeMetadataWithItem', val)" />
-            <ui-tooltip :text="$strings.LabelSettingsStoreMetadataWithItemHelp">
+          <div role="article" :aria-label="$strings.LabelSettingsStoreMetadataWithItemHelp" class="flex items-center py-2">
+            <ui-toggle-switch :label="$strings.LabelSettingsStoreMetadataWithItem" v-model="newServerSettings.storeMetadataWithItem" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('storeMetadataWithItem', val)" />
+            <ui-tooltip aria-hidden="true" :text="$strings.LabelSettingsStoreMetadataWithItemHelp">
               <p class="pl-4">
                 <span id="settings-store-metadata-with-items">{{ $strings.LabelSettingsStoreMetadataWithItem }}</span>
                 <span class="material-symbols icon-text">info</span>
@@ -26,9 +26,9 @@
             </ui-tooltip>
           </div>
 
-          <div class="flex items-center py-2">
-            <ui-toggle-switch labeledBy="settings-sorting-ignore-prefixes" v-model="newServerSettings.sortingIgnorePrefix" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('sortingIgnorePrefix', val)" />
-            <ui-tooltip :text="$strings.LabelSettingsSortingIgnorePrefixesHelp">
+          <div role="article" :aria-label="$strings.LabelSettingsSortingIgnorePrefixesHelp" class="flex items-center py-2">
+            <ui-toggle-switch :label="$strings.LabelSettingsSortingIgnorePrefixes" v-model="newServerSettings.sortingIgnorePrefix" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('sortingIgnorePrefix', val)" />
+            <ui-tooltip aria-hidden="true" :text="$strings.LabelSettingsSortingIgnorePrefixesHelp">
               <p class="pl-4">
                 <span id="settings-sorting-ignore-prefixes">{{ $strings.LabelSettingsSortingIgnorePrefixes }}</span>
                 <span class="material-symbols icon-text">info</span>
@@ -38,7 +38,7 @@
           <div v-if="newServerSettings.sortingIgnorePrefix" class="w-72 ml-14 mb-2">
             <ui-multi-select v-model="newServerSettings.sortingPrefixes" small :items="newServerSettings.sortingPrefixes" :label="$strings.LabelPrefixesToIgnore" @input="sortingPrefixesUpdated" :disabled="savingPrefixes" />
             <div class="flex justify-end py-1">
-              <ui-btn v-if="hasPrefixesChanged" color="success" :loading="savingPrefixes" small @click="updateSortingPrefixes">Save</ui-btn>
+              <ui-btn v-if="hasPrefixesChanged" color="bg-success" :loading="savingPrefixes" small @click="updateSortingPrefixes">Save</ui-btn>
             </div>
           </div>
 
@@ -46,9 +46,9 @@
             <h2 class="font-semibold">{{ $strings.HeaderSettingsScanner }}</h2>
           </div>
 
-          <div class="flex items-center py-2">
-            <ui-toggle-switch labeledBy="settings-parse-subtitles" v-model="newServerSettings.scannerParseSubtitle" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('scannerParseSubtitle', val)" />
-            <ui-tooltip :text="$strings.LabelSettingsParseSubtitlesHelp">
+          <div role="article" :aria-label="$strings.LabelSettingsParseSubtitlesHelp" class="flex items-center py-2">
+            <ui-toggle-switch :label="$strings.LabelSettingsParseSubtitles" v-model="newServerSettings.scannerParseSubtitle" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('scannerParseSubtitle', val)" />
+            <ui-tooltip aria-hidden="true" :text="$strings.LabelSettingsParseSubtitlesHelp">
               <p class="pl-4">
                 <span id="settings-parse-subtitles">{{ $strings.LabelSettingsParseSubtitles }}</span>
                 <span class="material-symbols icon-text">info</span>
@@ -56,23 +56,23 @@
             </ui-tooltip>
           </div>
 
-          <div class="flex items-center py-2">
-            <ui-toggle-switch labeledBy="settings-find-covers" v-model="newServerSettings.scannerFindCovers" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('scannerFindCovers', val)" />
-            <ui-tooltip :text="$strings.LabelSettingsFindCoversHelp">
+          <div role="article" :aria-label="$strings.LabelSettingsFindCoversHelp" class="flex items-center py-2">
+            <ui-toggle-switch :label="$strings.LabelSettingsFindCovers" v-model="newServerSettings.scannerFindCovers" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('scannerFindCovers', val)" />
+            <ui-tooltip aria-hidden="true" :text="$strings.LabelSettingsFindCoversHelp">
               <p class="pl-4">
                 <span id="settings-find-covers">{{ $strings.LabelSettingsFindCovers }}</span>
                 <span class="material-symbols icon-text">info</span>
               </p>
             </ui-tooltip>
-            <div class="flex-grow" />
+            <div class="grow" />
           </div>
           <div v-if="newServerSettings.scannerFindCovers" class="w-44 ml-14 mb-2">
-            <ui-dropdown v-model="newServerSettings.scannerCoverProvider" small :items="providers" label="Cover Provider" @input="updateScannerCoverProvider" :disabled="updatingServerSettings" />
+            <ui-dropdown v-model="newServerSettings.scannerCoverProvider" small :items="providers" :label="$strings.LabelCoverProvider" @input="updateScannerCoverProvider" :disabled="updatingServerSettings" />
           </div>
 
-          <div class="flex items-center py-2">
-            <ui-toggle-switch labeledBy="settings-prefer-matched-metadata" v-model="newServerSettings.scannerPreferMatchedMetadata" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('scannerPreferMatchedMetadata', val)" />
-            <ui-tooltip :text="$strings.LabelSettingsPreferMatchedMetadataHelp">
+          <div role="article" :aria-label="$strings.LabelSettingsPreferMatchedMetadataHelp" class="flex items-center py-2">
+            <ui-toggle-switch :label="$strings.LabelSettingsPreferMatchedMetadata" v-model="newServerSettings.scannerPreferMatchedMetadata" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('scannerPreferMatchedMetadata', val)" />
+            <ui-tooltip aria-hidden="true" :text="$strings.LabelSettingsPreferMatchedMetadataHelp">
               <p class="pl-4">
                 <span id="settings-prefer-matched-metadata">{{ $strings.LabelSettingsPreferMatchedMetadata }}</span>
                 <span class="material-symbols icon-text">info</span>
@@ -80,9 +80,9 @@
             </ui-tooltip>
           </div>
 
-          <div class="flex items-center py-2">
-            <ui-toggle-switch labeledBy="settings-disable-watcher" v-model="scannerEnableWatcher" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('scannerDisableWatcher', !val)" />
-            <ui-tooltip :text="$strings.LabelSettingsEnableWatcherHelp">
+          <div role="article" :aria-label="$strings.LabelSettingsEnableWatcherHelp" class="flex items-center py-2">
+            <ui-toggle-switch :label="$strings.LabelSettingsEnableWatcher" v-model="scannerEnableWatcher" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('scannerDisableWatcher', !val)" />
+            <ui-tooltip aria-hidden="true" :text="$strings.LabelSettingsEnableWatcherHelp">
               <p class="pl-4">
                 <span id="settings-disable-watcher">{{ $strings.LabelSettingsEnableWatcher }}</span>
                 <span class="material-symbols icon-text">info</span>
@@ -95,13 +95,13 @@
           </div>
 
           <div class="flex items-center py-2">
-            <ui-toggle-switch labeledBy="settings-chromecast-support" v-model="newServerSettings.chromecastEnabled" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('chromecastEnabled', val)" />
-            <p class="pl-4" id="settings-chromecast-support">{{ $strings.LabelSettingsChromecastSupport }}</p>
+            <ui-toggle-switch v-model="newServerSettings.chromecastEnabled" :label="$strings.LabelSettingsChromecastSupport" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('chromecastEnabled', val)" />
+            <p aria-hidden="true" class="pl-4">{{ $strings.LabelSettingsChromecastSupport }}</p>
           </div>
 
           <div class="flex items-center py-2 mb-2">
-            <ui-toggle-switch labeledBy="settings-allow-iframe" v-model="newServerSettings.allowIframe" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('allowIframe', val)" />
-            <p class="pl-4" id="settings-allow-iframe">{{ $strings.LabelSettingsAllowIframe }}</p>
+            <ui-toggle-switch v-model="newServerSettings.allowIframe" :label="$strings.LabelSettingsAllowIframe" :disabled="updatingServerSettings" @input="(val) => updateSettingsKey('allowIframe', val)" />
+            <p aria-hidden="true" class="pl-4">{{ $strings.LabelSettingsAllowIframe }}</p>
           </div>
         </div>
 
@@ -130,14 +130,14 @@
             </ui-tooltip>
           </div>
 
-          <div class="flex-grow py-2">
+          <div class="grow py-2">
             <ui-dropdown :label="$strings.LabelSettingsDateFormat" v-model="newServerSettings.dateFormat" :items="dateFormats" small class="max-w-52" @input="(val) => updateSettingsKey('dateFormat', val)" />
-            <p class="text-xs ml-1 text-white text-opacity-60">{{ $strings.LabelExample }}: {{ dateExample }}</p>
+            <p class="text-xs ml-1 text-white/60">{{ $strings.LabelExample }}: {{ dateExample }}</p>
           </div>
 
-          <div class="flex-grow py-2">
+          <div class="grow py-2">
             <ui-dropdown :label="$strings.LabelSettingsTimeFormat" v-model="newServerSettings.timeFormat" :items="timeFormats" small class="max-w-52" @input="(val) => updateSettingsKey('timeFormat', val)" />
-            <p class="text-xs ml-1 text-white text-opacity-60">{{ $strings.LabelExample }}: {{ timeExample }}</p>
+            <p class="text-xs ml-1 text-white/60">{{ $strings.LabelExample }}: {{ timeExample }}</p>
           </div>
 
           <div class="py-2">
@@ -164,16 +164,16 @@
       </div>
     </app-settings-content>
 
-    <div class="h-0.5 bg-primary bg-opacity-30 w-full" />
+    <div class="h-0.5 bg-primary/30 w-full" />
 
     <div class="flex items-center py-4">
-      <div class="flex-grow" />
-      <ui-btn color="bg" small :padding-x="4" class="mr-2 text-xs md:text-sm" :loading="isPurgingCache" @click.stop="purgeCache">{{ $strings.ButtonPurgeAllCache }}</ui-btn>
-      <ui-btn color="bg" small :padding-x="4" class="mr-2 text-xs md:text-sm" :loading="isPurgingCache" @click.stop="purgeItemsCache">{{ $strings.ButtonPurgeItemsCache }}</ui-btn>
+      <div class="grow" />
+      <ui-btn color="bg-bg" small :padding-x="4" class="mr-2 text-xs md:text-sm" :loading="isPurgingCache" @click.stop="purgeCache">{{ $strings.ButtonPurgeAllCache }}</ui-btn>
+      <ui-btn color="bg-bg" small :padding-x="4" class="mr-2 text-xs md:text-sm" :loading="isPurgingCache" @click.stop="purgeItemsCache">{{ $strings.ButtonPurgeItemsCache }}</ui-btn>
     </div>
 
     <div class="flex items-center py-4">
-      <div class="flex-grow" />
+      <div class="grow" />
       <p class="pr-2 text-sm text-yellow-400">
         {{ $strings.MessageReportBugsAndContribute }}
         <a class="underline" href="https://github.com/advplyr/audiobookshelf" target="_blank">github</a>
@@ -206,7 +206,7 @@
       </a>
     </div>
 
-    <div class="h-0.5 bg-primary bg-opacity-30 w-full" />
+    <div class="h-0.5 bg-primary/30 w-full" />
 
     <!-- confirm cache purge dialog -->
     <prompt-dialog v-model="showConfirmPurgeCache" :width="675">
@@ -214,9 +214,9 @@
         <p class="text-error font-semibold">{{ $strings.MessageImportantNotice }}</p>
         <p class="my-8 text-center" v-html="$strings.MessageConfirmPurgeCache" />
         <div class="flex px-1 items-center">
-          <ui-btn color="primary" @click="showConfirmPurgeCache = false">{{ $strings.ButtonNevermind }}</ui-btn>
-          <div class="flex-grow" />
-          <ui-btn color="success" @click="confirmPurge">{{ $strings.ButtonYes }}</ui-btn>
+          <ui-btn color="bg-primary" @click="showConfirmPurgeCache = false">{{ $strings.ButtonNevermind }}</ui-btn>
+          <div class="grow" />
+          <ui-btn color="bg-success" @click="confirmPurge">{{ $strings.ButtonYes }}</ui-btn>
         </div>
       </div>
     </prompt-dialog>

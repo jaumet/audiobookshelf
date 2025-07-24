@@ -6,7 +6,7 @@ const Database = require('../../../server/Database')
 const ApiRouter = require('../../../server/routers/ApiRouter')
 const LibraryItemController = require('../../../server/controllers/LibraryItemController')
 const ApiCacheManager = require('../../../server/managers/ApiCacheManager')
-const RssFeedManager = require('../../../server/managers/RssFeedManager')
+const Auth = require('../../../server/Auth')
 const Logger = require('../../../server/Logger')
 
 describe('LibraryItemController', () => {
@@ -20,8 +20,8 @@ describe('LibraryItemController', () => {
     await Database.buildModels()
 
     apiRouter = new ApiRouter({
-      apiCacheManager: new ApiCacheManager(),
-      rssFeedManager: new RssFeedManager()
+      auth: new Auth(),
+      apiCacheManager: new ApiCacheManager()
     })
 
     sinon.stub(Logger, 'info')
@@ -84,11 +84,11 @@ describe('LibraryItemController', () => {
     })
 
     it('should remove authors and series with no books on library item delete', async () => {
-      const oldLibraryItem = await Database.libraryItemModel.getOldById(libraryItem1Id)
+      const libraryItem = await Database.libraryItemModel.getExpandedById(libraryItem1Id)
 
       const fakeReq = {
         query: {},
-        libraryItem: oldLibraryItem
+        libraryItem
       }
       const fakeRes = {
         sendStatus: sinon.spy()
@@ -158,8 +158,8 @@ describe('LibraryItemController', () => {
     })
 
     it('should remove authors and series with no books on library item update media', async () => {
-      const oldLibraryItem = await Database.libraryItemModel.getOldById(libraryItem1Id)
-
+      const libraryItem = await Database.libraryItemModel.getExpandedById(libraryItem1Id)
+      libraryItem.saveMetadataFile = sinon.stub()
       // Update library item 1 remove all authors and series
       const fakeReq = {
         query: {},
@@ -169,7 +169,7 @@ describe('LibraryItemController', () => {
             series: []
           }
         },
-        libraryItem: oldLibraryItem
+        libraryItem
       }
       const fakeRes = {
         json: sinon.spy()

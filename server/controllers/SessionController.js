@@ -1,7 +1,9 @@
+const Path = require('path')
 const { Request, Response, NextFunction } = require('express')
 const Logger = require('../Logger')
 const Database = require('../Database')
 const { toNumber, isUUID } = require('../utils/index')
+const { getAudioMimeTypeFromExtname, encodeUriPath } = require('../utils/fileUtils')
 
 const ShareManager = require('../managers/ShareManager')
 
@@ -55,26 +57,24 @@ class SessionController {
     }
 
     let where = null
-    const include = [
-      {
-        model: Database.models.device
-      }
-    ]
 
     if (userId) {
       where = {
         userId
       }
-    } else {
-      include.push({
-        model: Database.userModel,
-        attributes: ['id', 'username']
-      })
     }
 
     const { rows, count } = await Database.playbackSessionModel.findAndCountAll({
       where,
-      include,
+      include: [
+        {
+          model: Database.deviceModel
+        },
+        {
+          model: Database.userModel,
+          attributes: ['id', 'username']
+        }
+      ],
       order: [[orderKey, orderDesc]],
       limit: itemsPerPage,
       offset: itemsPerPage * page
@@ -149,7 +149,7 @@ class SessionController {
    * @param {Response} res
    */
   async getOpenSession(req, res) {
-    const libraryItem = await Database.libraryItemModel.getOldById(req.playbackSession.libraryItemId)
+    const libraryItem = await Database.libraryItemModel.getExpandedById(req.playbackSession.libraryItemId)
     const sessionForClient = req.playbackSession.toJSONForClient(libraryItem)
     res.json(sessionForClient)
   }
@@ -264,6 +264,56 @@ class SessionController {
    */
   syncLocalSessions(req, res) {
     this.playbackSessionManager.syncLocalSessionsRequest(req, res)
+  }
+
+  /**
+   * GET: /public/session/:id/track/:index
+   * While a session is open, this endpoint can be used to stream the audio track
+   *
+   * @this {import('../routers/PublicRouter')}
+   *
+   * @param {Request} req
+   * @param {Response} res
+   */
+  async getTrack(req, res) {
+    const audioTrackIndex = toNumber(req.params.index, null)
+    if (audioTrackIndex === null) {
+      Logger.error(`[SessionController] Invalid audio track index "${req.params.index}"`)
+      return res.sendStatus(400)
+    }
+
+    const playbackSession = this.playbackSessionManager.getSession(req.params.id)
+    if (!playbackSession) {
+      Logger.error(`[SessionController] Unable to find playback session with id=${req.params.id}`)
+      return res.sendStatus(404)
+    }
+
+    let audioTrack = playbackSession.audioTracks.find((t) => toNumber(t.index, 1) === audioTrackIndex)
+
+    // Support clients passing 0 or 1 for podcast episode audio track index (handles old episodes pre-v2.21.0 having null index)
+    if (!audioTrack && playbackSession.mediaType === 'podcast' && audioTrackIndex === 0) {
+      audioTrack = playbackSession.audioTracks[0]
+    }
+    if (!audioTrack) {
+      Logger.error(`[SessionController] Unable to find audio track with index=${audioTrackIndex}`)
+      return res.sendStatus(404)
+    }
+
+    const user = await Database.userModel.getUserById(playbackSession.userId)
+    Logger.debug(`[SessionController] Serving audio track ${audioTrack.index} for session "${req.params.id}" belonging to user "${user.username}"`)
+
+    if (global.XAccel) {
+      const encodedURI = encodeUriPath(global.XAccel + audioTrack.metadata.path)
+      Logger.debug(`Use X-Accel to serve static file ${encodedURI}`)
+      return res.status(204).header({ 'X-Accel-Redirect': encodedURI }).send()
+    }
+
+    // Express does not set the correct mimetype for m4b files so use our defined mimetypes if available
+    const audioMimeType = getAudioMimeTypeFromExtname(Path.extname(audioTrack.metadata.path))
+    if (audioMimeType) {
+      res.setHeader('Content-Type', audioMimeType)
+    }
+    res.sendFile(audioTrack.metadata.path)
   }
 
   /**

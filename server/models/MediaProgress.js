@@ -34,33 +34,8 @@ class MediaProgress extends Model {
     this.updatedAt
     /** @type {Date} */
     this.createdAt
-  }
-
-  static upsertFromOld(oldMediaProgress) {
-    const mediaProgress = this.getFromOld(oldMediaProgress)
-    return this.upsert(mediaProgress)
-  }
-
-  static getFromOld(oldMediaProgress) {
-    return {
-      id: oldMediaProgress.id,
-      userId: oldMediaProgress.userId,
-      mediaItemId: oldMediaProgress.mediaItemId,
-      mediaItemType: oldMediaProgress.mediaItemType,
-      duration: oldMediaProgress.duration,
-      currentTime: oldMediaProgress.currentTime,
-      ebookLocation: oldMediaProgress.ebookLocation || null,
-      ebookProgress: oldMediaProgress.ebookProgress || null,
-      isFinished: !!oldMediaProgress.isFinished,
-      hideFromContinueListening: !!oldMediaProgress.hideFromContinueListening,
-      finishedAt: oldMediaProgress.finishedAt,
-      createdAt: oldMediaProgress.startedAt || oldMediaProgress.lastUpdate,
-      updatedAt: oldMediaProgress.lastUpdate,
-      extraData: {
-        libraryItemId: oldMediaProgress.libraryItemId,
-        progress: oldMediaProgress.progress
-      }
-    }
+    /** @type {UUIDV4} */
+    this.podcastId
   }
 
   static removeById(mediaProgressId) {
@@ -69,12 +44,6 @@ class MediaProgress extends Model {
         id: mediaProgressId
       }
     })
-  }
-
-  getMediaItem(options) {
-    if (!this.mediaItemType) return Promise.resolve(null)
-    const mixinMethodName = `get${this.sequelize.uppercaseFirst(this.mediaItemType)}`
-    return this[mixinMethodName](options)
   }
 
   /**
@@ -102,7 +71,8 @@ class MediaProgress extends Model {
         ebookLocation: DataTypes.STRING,
         ebookProgress: DataTypes.FLOAT,
         finishedAt: DataTypes.DATE,
-        extraData: DataTypes.JSON
+        extraData: DataTypes.JSON,
+        podcastId: DataTypes.UUID
       },
       {
         sequelize,
@@ -156,10 +126,26 @@ class MediaProgress extends Model {
       }
     })
 
+    // make sure to call the afterDestroy hook for each instance
+    MediaProgress.addHook('beforeBulkDestroy', (options) => {
+      options.individualHooks = true
+    })
+
+    // update the potentially cached user after destroying the media progress
+    MediaProgress.addHook('afterDestroy', (instance) => {
+      user.mediaProgressRemoved(instance)
+    })
+
     user.hasMany(MediaProgress, {
       onDelete: 'CASCADE'
     })
     MediaProgress.belongsTo(user)
+  }
+
+  getMediaItem(options) {
+    if (!this.mediaItemType) return Promise.resolve(null)
+    const mixinMethodName = `get${this.sequelize.uppercaseFirst(this.mediaItemType)}`
+    return this[mixinMethodName](options)
   }
 
   getOldMediaProgress() {
@@ -197,11 +183,11 @@ class MediaProgress extends Model {
    * @param {import('./User').ProgressUpdatePayload} progressPayload
    * @returns {Promise<MediaProgress>}
    */
-  applyProgressUpdate(progressPayload) {
+  async applyProgressUpdate(progressPayload) {
     if (!this.extraData) this.extraData = {}
     if (progressPayload.isFinished !== undefined) {
       if (progressPayload.isFinished && !this.isFinished) {
-        this.finishedAt = Date.now()
+        this.finishedAt = progressPayload.finishedAt || Date.now()
         this.extraData.progress = 1
         this.changed('extraData', true)
         delete progressPayload.finishedAt
@@ -236,13 +222,13 @@ class MediaProgress extends Model {
         const markAsFinishedPercentComplete = Number(progressPayload.markAsFinishedPercentComplete) / 100
         shouldMarkAsFinished = markAsFinishedPercentComplete < this.progress
         if (shouldMarkAsFinished) {
-          Logger.debug(`[MediaProgress] Marking media progress as finished because progress (${this.progress}) is greater than ${markAsFinishedPercentComplete}`)
+          Logger.info(`[MediaProgress] Marking media progress as finished because progress (${this.progress}) is greater than ${markAsFinishedPercentComplete} (media item ${this.mediaItemId})`)
         }
       } else {
         const markAsFinishedTimeRemaining = isNullOrNaN(progressPayload.markAsFinishedTimeRemaining) ? 10 : Number(progressPayload.markAsFinishedTimeRemaining)
         shouldMarkAsFinished = timeRemaining < markAsFinishedTimeRemaining
         if (shouldMarkAsFinished) {
-          Logger.debug(`[MediaProgress] Marking media progress as finished because time remaining (${timeRemaining}) is less than ${markAsFinishedTimeRemaining} seconds`)
+          Logger.info(`[MediaProgress] Marking media progress as finished because time remaining (${timeRemaining}) is less than ${markAsFinishedTimeRemaining} seconds (media item ${this.mediaItemId})`)
         }
       }
     }
@@ -257,12 +243,23 @@ class MediaProgress extends Model {
       this.finishedAt = null
     }
 
+    await this.save()
+
     // For local sync
     if (progressPayload.lastUpdate) {
-      this.updatedAt = progressPayload.lastUpdate
+      if (isNaN(new Date(progressPayload.lastUpdate))) {
+        Logger.warn(`[MediaProgress] Invalid date provided for lastUpdate: ${progressPayload.lastUpdate} (media item ${this.mediaItemId})`)
+      } else {
+        const escapedDate = this.sequelize.escape(new Date(progressPayload.lastUpdate))
+        Logger.info(`[MediaProgress] Manually setting updatedAt to ${escapedDate} (media item ${this.mediaItemId})`)
+
+        await this.sequelize.query(`UPDATE "mediaProgresses" SET "updatedAt" = ${escapedDate} WHERE "id" = '${this.id}'`)
+
+        await this.reload()
+      }
     }
 
-    return this.save()
+    return this
   }
 }
 

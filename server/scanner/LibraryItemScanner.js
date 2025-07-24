@@ -64,8 +64,7 @@ class LibraryItemScanner {
 
     const { libraryItem: expandedLibraryItem, wasUpdated } = await this.rescanLibraryItemMedia(libraryItem, libraryItemScanData, library.settings, scanLogger)
     if (libraryItemDataUpdated || wasUpdated) {
-      const oldLibraryItem = Database.libraryItemModel.getOldLibraryItem(expandedLibraryItem)
-      SocketAuthority.emitter('item_updated', oldLibraryItem.toJSONExpanded())
+      SocketAuthority.libraryItemEmitter('item_updated', expandedLibraryItem)
 
       await this.checkAuthorsAndSeriesRemovedFromBooks(library.id, scanLogger)
 
@@ -206,6 +205,11 @@ class LibraryItemScanner {
    */
   async scanPotentialNewLibraryItem(libraryItemPath, library, folder, isSingleMediaItem) {
     const libraryItemScanData = await this.getLibraryItemScanData(libraryItemPath, library, folder, isSingleMediaItem)
+
+    if (!libraryItemScanData.libraryFiles.length) {
+      Logger.info(`[LibraryItemScanner] Library item at path "${libraryItemPath}" has no files - ignoring`)
+      return null
+    }
 
     const scanLogger = new ScanLogger()
     scanLogger.verbose = true

@@ -14,6 +14,11 @@ class NotificationManager {
     return notificationData
   }
 
+  /**
+   *
+   * @param {import('../models/LibraryItem')} libraryItem
+   * @param {import('../models/PodcastEpisode')} episode
+   */
   async onPodcastEpisodeDownloaded(libraryItem, episode) {
     if (!Database.notificationSettings.isUseable) return
 
@@ -22,17 +27,17 @@ class NotificationManager {
       return
     }
 
-    Logger.debug(`[NotificationManager] onPodcastEpisodeDownloaded: Episode "${episode.title}" for podcast ${libraryItem.media.metadata.title}`)
+    Logger.debug(`[NotificationManager] onPodcastEpisodeDownloaded: Episode "${episode.title}" for podcast ${libraryItem.media.title}`)
     const library = await Database.libraryModel.findByPk(libraryItem.libraryId)
     const eventData = {
       libraryItemId: libraryItem.id,
       libraryId: libraryItem.libraryId,
       libraryName: library?.name || 'Unknown',
       mediaTags: (libraryItem.media.tags || []).join(', '),
-      podcastTitle: libraryItem.media.metadata.title,
-      podcastAuthor: libraryItem.media.metadata.author || '',
-      podcastDescription: libraryItem.media.metadata.description || '',
-      podcastGenres: (libraryItem.media.metadata.genres || []).join(', '),
+      podcastTitle: libraryItem.media.title,
+      podcastAuthor: libraryItem.media.author || '',
+      podcastDescription: libraryItem.media.description || '',
+      podcastGenres: (libraryItem.media.genres || []).join(', '),
       episodeId: episode.id,
       episodeTitle: episode.title,
       episodeSubtitle: episode.subtitle || '',
@@ -64,6 +69,54 @@ class NotificationManager {
       removedOldest: removedOldest || 'false'
     }
     this.triggerNotification('onBackupCompleted', eventData)
+  }
+
+  /**
+   * Handles scheduled episode download RSS feed request failed
+   *
+   * @param {string} feedUrl
+   * @param {number} numFailed
+   * @param {string} title
+   */
+  async onRSSFeedFailed(feedUrl, numFailed, title) {
+    if (!Database.notificationSettings.isUseable) return
+
+    if (!Database.notificationSettings.getHasActiveNotificationsForEvent('onRSSFeedFailed')) {
+      Logger.debug(`[NotificationManager] onRSSFeedFailed: No active notifications`)
+      return
+    }
+
+    Logger.debug(`[NotificationManager] onRSSFeedFailed: RSS feed request failed for ${feedUrl}`)
+    const eventData = {
+      feedUrl: feedUrl,
+      numFailed: numFailed || 0,
+      title: title || 'Unknown Title'
+    }
+    this.triggerNotification('onRSSFeedFailed', eventData)
+  }
+
+  /**
+   * Handles scheduled episode downloads disabled due to too many failed attempts
+   *
+   * @param {string} feedUrl
+   * @param {number} numFailed
+   * @param {string} title
+   */
+  async onRSSFeedDisabled(feedUrl, numFailed, title) {
+    if (!Database.notificationSettings.isUseable) return
+
+    if (!Database.notificationSettings.getHasActiveNotificationsForEvent('onRSSFeedDisabled')) {
+      Logger.debug(`[NotificationManager] onRSSFeedDisabled: No active notifications`)
+      return
+    }
+
+    Logger.debug(`[NotificationManager] onRSSFeedDisabled: Podcast scheduled episode download disabled due to ${numFailed} failed requests for ${feedUrl}`)
+    const eventData = {
+      feedUrl: feedUrl,
+      numFailed: numFailed || 0,
+      title: title || 'Unknown Title'
+    }
+    this.triggerNotification('onRSSFeedDisabled', eventData)
   }
 
   /**

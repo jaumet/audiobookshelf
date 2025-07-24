@@ -6,21 +6,24 @@ const { getTitleIgnorePrefix, areEquivalent } = require('../utils/index')
 const parseNameString = require('../utils/parsers/parseNameString')
 const parseEbookMetadata = require('../utils/parsers/parseEbookMetadata')
 const globals = require('../utils/globals')
+const { readTextFile, filePathToPOSIX, getFileTimestampsWithIno } = require('../utils/fileUtils')
+
 const AudioFileScanner = require('./AudioFileScanner')
 const Database = require('../Database')
-const { readTextFile, filePathToPOSIX, getFileTimestampsWithIno } = require('../utils/fileUtils')
-const AudioFile = require('../objects/files/AudioFile')
-const CoverManager = require('../managers/CoverManager')
-const LibraryFile = require('../objects/files/LibraryFile')
 const SocketAuthority = require('../SocketAuthority')
-const fsExtra = require('../libs/fsExtra')
 const BookFinder = require('../finders/BookFinder')
+const fsExtra = require('../libs/fsExtra')
+const EBookFile = require('../objects/files/EBookFile')
+const AudioFile = require('../objects/files/AudioFile')
+const LibraryFile = require('../objects/files/LibraryFile')
+
+const RssFeedManager = require('../managers/RssFeedManager')
+const CoverManager = require('../managers/CoverManager')
 
 const LibraryScan = require('./LibraryScan')
 const OpfFileScanner = require('./OpfFileScanner')
 const NfoFileScanner = require('./NfoFileScanner')
 const AbsMetadataFileScanner = require('./AbsMetadataFileScanner')
-const EBookFile = require('../objects/files/EBookFile')
 
 /**
  * Metadata for books pulled from files
@@ -472,6 +475,8 @@ class BookScanner {
       bookAuthors: [],
       bookSeries: []
     }
+
+    const createdAtTimestamp = new Date().getTime()
     if (bookMetadata.authors.length) {
       for (const authorName of bookMetadata.authors) {
         const matchingAuthorId = await Database.getAuthorIdByName(libraryItemData.libraryId, authorName)
@@ -482,6 +487,8 @@ class BookScanner {
         } else {
           // New author
           bookObject.bookAuthors.push({
+            // Ensures authors are in a set order
+            createdAt: createdAtTimestamp + bookObject.bookAuthors.length,
             author: {
               libraryId: libraryItemData.libraryId,
               name: authorName,
@@ -518,6 +525,10 @@ class BookScanner {
     libraryItemObj.isMissing = false
     libraryItemObj.isInvalid = false
     libraryItemObj.extraData = {}
+    libraryItemObj.title = bookMetadata.title
+    libraryItemObj.titleIgnorePrefix = getTitleIgnorePrefix(bookMetadata.title)
+    libraryItemObj.authorNamesFirstLast = bookMetadata.authors.join(', ')
+    libraryItemObj.authorNamesLastFirst = bookMetadata.authors.map((author) => Database.authorModel.getLastFirst(author)).join(', ')
 
     // Set isSupplementary flag on ebook library files
     for (const libraryFile of libraryItemObj.libraryFiles) {
@@ -941,6 +952,9 @@ class BookScanner {
           id: bookSeriesToRemove
         }
       })
+      // Close any open feeds for series
+      await RssFeedManager.closeFeedsForEntityIds(bookSeriesToRemove)
+
       bookSeriesToRemove.forEach((seriesId) => {
         Database.removeSeriesFromFilterData(libraryId, seriesId)
         SocketAuthority.emitter('series_removed', { id: seriesId, libraryId })

@@ -6,11 +6,13 @@ const util = require('util')
 const fs = require('./libs/fsExtra')
 const fileUpload = require('./libs/expressFileupload')
 const cookieParser = require('cookie-parser')
+const axios = require('axios')
 
 const { version } = require('../package.json')
 
 // Utils
 const fileUtils = require('./utils/fileUtils')
+const { toNumber } = require('./utils/index')
 const Logger = require('./Logger')
 
 const Auth = require('./Auth')
@@ -53,7 +55,38 @@ class Server {
     global.RouterBasePath = ROUTER_BASE_PATH
     global.XAccel = process.env.USE_X_ACCEL
     global.AllowCors = process.env.ALLOW_CORS === '1'
-    global.DisableSsrfRequestFilter = process.env.DISABLE_SSRF_REQUEST_FILTER === '1'
+
+    if (process.env.EXP_PROXY_SUPPORT === '1') {
+      // https://github.com/advplyr/audiobookshelf/pull/3754
+      Logger.info(`[Server] Experimental Proxy Support Enabled, SSRF Request Filter was Disabled`)
+      global.DisableSsrfRequestFilter = () => true
+
+      axios.defaults.maxRedirects = 0
+      axios.interceptors.response.use(
+        (response) => response,
+        (error) => {
+          if ([301, 302].includes(error.response?.status)) {
+            return axios({
+              ...error.config,
+              url: error.response.headers.location
+            })
+          }
+
+          return Promise.reject(error)
+        }
+      )
+    } else if (process.env.DISABLE_SSRF_REQUEST_FILTER === '1') {
+      Logger.info(`[Server] SSRF Request Filter Disabled`)
+      global.DisableSsrfRequestFilter = () => true
+    } else if (process.env.SSRF_REQUEST_FILTER_WHITELIST?.length) {
+      const whitelistedUrls = process.env.SSRF_REQUEST_FILTER_WHITELIST.split(',').map((url) => url.trim())
+      if (whitelistedUrls.length) {
+        Logger.info(`[Server] SSRF Request Filter Whitelisting: ${whitelistedUrls.join(',')}`)
+        global.DisableSsrfRequestFilter = (url) => whitelistedUrls.includes(new URL(url).hostname)
+      }
+    }
+    global.PodcastDownloadTimeout = toNumber(process.env.PODCAST_DOWNLOAD_TIMEOUT, 30000)
+    global.MaxFailedEpisodeChecks = toNumber(process.env.MAX_FAILED_EPISODE_CHECKS, 24)
 
     if (!fs.pathExistsSync(global.ConfigPath)) {
       fs.mkdirSync(global.ConfigPath)
@@ -71,7 +104,6 @@ class Server {
     this.playbackSessionManager = new PlaybackSessionManager()
     this.podcastManager = new PodcastManager()
     this.audioMetadataManager = new AudioMetadataMangaer()
-    this.rssFeedManager = new RssFeedManager()
     this.cronManager = new CronManager(this.podcastManager, this.playbackSessionManager)
     this.apiCacheManager = new ApiCacheManager()
     this.binaryManager = new BinaryManager()
@@ -124,20 +156,17 @@ class Server {
     }
 
     await Database.init(false)
+    // Create or set JWT secret in token manager
+    await this.auth.tokenManager.initTokenSecret()
 
     await Logger.logManager.init()
-
-    // Create token secret if does not exist (Added v2.1.0)
-    if (!Database.serverSettings.tokenSecret) {
-      await this.auth.initTokenSecret()
-    }
 
     await this.cleanUserData() // Remove invalid user item progress
     await CacheManager.ensureCachePaths()
 
     await ShareManager.init()
     await this.backupManager.init()
-    await this.rssFeedManager.init()
+    await RssFeedManager.init()
 
     const libraries = await Database.libraryModel.getAllWithFolders()
     await this.cronManager.init(libraries)
@@ -188,6 +217,7 @@ class Server {
 
   async start() {
     Logger.info('=== Starting Server ===')
+
     this.initProcessEventListeners()
     await this.init()
 
@@ -210,7 +240,7 @@ class Server {
        * Running in development allows cors to allow testing the mobile apps in the browser
        * or env variable ALLOW_CORS = '1'
        */
-      if (Logger.isDev || req.path.match(/\/api\/items\/([a-z0-9-]{36})\/(ebook|cover)(\/[0-9]+)?/)) {
+      if (global.AllowCors || Logger.isDev || req.path.match(/\/api\/items\/([a-z0-9-]{36})\/(ebook|cover)(\/[0-9]+)?/)) {
         const allowedOrigins = ['capacitor://localhost', 'http://localhost']
         if (global.AllowCors || Logger.isDev || allowedOrigins.some((o) => o === req.get('origin'))) {
           res.header('Access-Control-Allow-Origin', req.get('origin'))
@@ -231,7 +261,7 @@ class Server {
     // enable express-session
     app.use(
       expressSession({
-        secret: global.ServerSettings.tokenSecret,
+        secret: this.auth.tokenManager.TokenSecret,
         resave: false,
         saveUninitialized: false,
         cookie: {
@@ -249,6 +279,7 @@ class Server {
     await this.auth.initPassportJs()
 
     const router = express.Router()
+
     // if RouterBasePath is set, modify all requests to include the base path
     app.use((req, res, next) => {
       const urlStartsWithRouterBasePath = req.url.startsWith(global.RouterBasePath)
@@ -275,15 +306,13 @@ class Server {
       })
     )
     router.use(express.urlencoded({ extended: true, limit: '5mb' }))
-    router.use(express.json({ limit: '5mb' }))
+
+    // Skip JSON parsing for internal-api routes
+    router.use(/^(?!\/internal-api).*/, express.json({ limit: '10mb' }))
 
     router.use('/api', this.auth.ifAuthNeeded(this.authMiddleware.bind(this)), this.apiRouter.router)
-    router.use('/hls', this.authMiddleware.bind(this), this.hlsRouter.router)
+    router.use('/hls', this.hlsRouter.router)
     router.use('/public', this.publicRouter.router)
-
-    // Static path to generated nuxt
-    const distPath = Path.join(global.appRoot, '/client/dist')
-    router.use(express.static(distPath))
 
     // Static folder
     router.use(express.static(Path.join(global.appRoot, 'static')))
@@ -291,44 +320,18 @@ class Server {
     // RSS Feed temp route
     router.get('/feed/:slug', (req, res) => {
       Logger.info(`[Server] Requesting rss feed ${req.params.slug}`)
-      this.rssFeedManager.getFeed(req, res)
+      RssFeedManager.getFeed(req, res)
     })
     router.get('/feed/:slug/cover*', (req, res) => {
-      this.rssFeedManager.getFeedCover(req, res)
+      RssFeedManager.getFeedCover(req, res)
     })
     router.get('/feed/:slug/item/:episodeId/*', (req, res) => {
       Logger.debug(`[Server] Requesting rss feed episode ${req.params.slug}/${req.params.episodeId}`)
-      this.rssFeedManager.getFeedItem(req, res)
+      RssFeedManager.getFeedItem(req, res)
     })
 
     // Auth routes
     await this.auth.initAuthRoutes(router)
-
-    // Client dynamic routes
-    const dynamicRoutes = [
-      '/item/:id',
-      '/author/:id',
-      '/audiobook/:id/chapters',
-      '/audiobook/:id/edit',
-      '/audiobook/:id/manage',
-      '/library/:library',
-      '/library/:library/search',
-      '/library/:library/bookshelf/:id?',
-      '/library/:library/authors',
-      '/library/:library/narrators',
-      '/library/:library/stats',
-      '/library/:library/series/:id?',
-      '/library/:library/podcast/search',
-      '/library/:library/podcast/latest',
-      '/library/:library/podcast/download-queue',
-      '/config/users/:id',
-      '/config/users/:id/sessions',
-      '/config/item-metadata-utils/:id',
-      '/collection/:id',
-      '/playlist/:id',
-      '/share/:slug'
-    ]
-    dynamicRoutes.forEach((route) => router.get(route, (req, res) => res.sendFile(Path.join(distPath, 'index.html'))))
 
     router.post('/init', (req, res) => {
       if (Database.hasRootUser) {
@@ -360,10 +363,62 @@ class Server {
     })
     router.get('/healthcheck', (req, res) => res.sendStatus(200))
 
-    this.server.listen(this.Port, this.Host, () => {
-      if (this.Host) Logger.info(`Listening on http://${this.Host}:${this.Port}`)
-      else Logger.info(`Listening on port :${this.Port}`)
-    })
+    const ReactClientPath = process.env.REACT_CLIENT_PATH
+    if (!ReactClientPath) {
+      // Static path to generated nuxt
+      const distPath = Path.join(global.appRoot, '/client/dist')
+      router.use(express.static(distPath))
+
+      // Client dynamic routes
+      const dynamicRoutes = [
+        '/item/:id',
+        '/author/:id',
+        '/audiobook/:id/chapters',
+        '/audiobook/:id/edit',
+        '/audiobook/:id/manage',
+        '/library/:library',
+        '/library/:library/search',
+        '/library/:library/bookshelf/:id?',
+        '/library/:library/authors',
+        '/library/:library/narrators',
+        '/library/:library/stats',
+        '/library/:library/series/:id?',
+        '/library/:library/podcast/search',
+        '/library/:library/podcast/latest',
+        '/library/:library/podcast/download-queue',
+        '/config/users/:id',
+        '/config/users/:id/sessions',
+        '/config/item-metadata-utils/:id',
+        '/collection/:id',
+        '/playlist/:id',
+        '/share/:slug'
+      ]
+      dynamicRoutes.forEach((route) => router.get(route, (req, res) => res.sendFile(Path.join(distPath, 'index.html'))))
+    } else {
+      // This is for using the experimental Next.js client
+      Logger.info(`Using React client at ${ReactClientPath}`)
+      const nextPath = Path.join(ReactClientPath, 'node_modules/next')
+      const next = require(nextPath)
+      const nextApp = next({ dev: Logger.isDev, dir: ReactClientPath })
+      const handle = nextApp.getRequestHandler()
+      await nextApp.prepare()
+      router.get('*', (req, res) => handle(req, res))
+      router.post('/internal-api/*', (req, res) => handle(req, res))
+    }
+
+    const unixSocketPrefix = 'unix/'
+    if (this.Host?.startsWith(unixSocketPrefix)) {
+      const sockPath = this.Host.slice(unixSocketPrefix.length)
+      this.server.listen(sockPath, async () => {
+        await fs.chmod(sockPath, 0o666)
+        Logger.info(`Listening on unix socket ${sockPath}`)
+      })
+    } else {
+      this.server.listen(this.Port, this.Host, () => {
+        if (this.Host) Logger.info(`Listening on http://${this.Host}:${this.Port}`)
+        else Logger.info(`Listening on port :${this.Port}`)
+      })
+    }
 
     // Start listening for socket connections
     SocketAuthority.initialize(this)
@@ -373,7 +428,7 @@ class Server {
     Logger.info(`[Server] Initializing new server`)
     const newRoot = req.body.newRoot
     const rootUsername = newRoot.username || 'root'
-    const rootPash = newRoot.password ? await this.auth.hashPass(newRoot.password) : ''
+    const rootPash = newRoot.password ? await this.auth.localAuthStrategy.hashPassword(newRoot.password) : ''
     if (!rootPash) Logger.warn(`[Server] Creating root user with no password`)
     await Database.createRootUser(rootUsername, rootPash, this.auth)
 

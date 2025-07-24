@@ -1,24 +1,24 @@
 <template>
   <div class="w-full">
-    <p class="px-1 text-sm font-semibold" :class="disabled ? 'text-gray-400' : ''">{{ label }}</p>
+    <label :for="identifier" class="px-1 text-sm font-semibold" :class="disabled ? 'text-gray-400' : ''">{{ label }}</label>
     <div ref="wrapper" class="relative">
       <form @submit.prevent="submitForm">
-        <div ref="inputWrapper" style="min-height: 36px" class="flex-wrap relative w-full shadow-sm flex items-center border border-gray-600 rounded px-2 py-0.5" :class="wrapperClass" @click.stop.prevent="clickWrapper" @mouseup.stop.prevent @mousedown.prevent>
-          <div v-for="item in selected" :key="item.id" class="rounded-full px-2 py-0.5 m-0.5 text-xs bg-bg flex flex-nowrap whitespace-nowrap items-center justify-center relative min-w-12">
-            <div v-if="!disabled" class="w-full h-full rounded-full absolute top-0 left-0 opacity-0 hover:opacity-100 px-1 bg-bg bg-opacity-75 flex items-center justify-end cursor-pointer">
-              <span v-if="showEdit" class="material-symbols text-base text-white hover:text-warning mr-1" @click.stop="editItem(item)">edit</span>
-              <span class="material-symbols text-white hover:text-error" style="font-size: 1.1rem" @click.stop="removeItem(item.id)">close</span>
+        <div ref="inputWrapper" role="list" style="min-height: 36px" class="flex-wrap relative w-full shadow-xs flex items-center border border-gray-600 rounded-sm px-2 py-0.5" :class="wrapperClass" @click.stop.prevent="clickWrapper" @mouseup.stop.prevent @mousedown.prevent>
+          <div v-for="item in selected" :key="item.id" role="listitem" class="rounded-full px-2 py-0.5 m-0.5 text-xs bg-bg flex flex-nowrap whitespace-nowrap items-center justify-center relative min-w-12">
+            <div v-if="!disabled" class="w-full h-full rounded-full absolute top-0 left-0 opacity-0 hover:opacity-100 px-1 bg-bg/75 flex items-center justify-end cursor-pointer" :class="{ 'opacity-100': inputFocused }">
+              <button v-if="showEdit" type="button" :aria-label="$strings.ButtonEdit" class="material-symbols text-base text-white hover:text-warning focus:text-warning mr-1" @click.stop="editItem(item)" @keydown.enter.stop.prevent="editItem(item)" @focus="setInputFocused(true)" @blur="setInputFocused(false)" tabindex="0">edit</button>
+              <button type="button" :aria-label="$strings.ButtonRemove" class="material-symbols text-white hover:text-error focus:text-error" style="font-size: 1.1rem" @click.stop="removeItem(item.id)" @keydown.enter.stop="removeItem(item.id)" @focus="setInputFocused(true)" @blur="setInputFocused(false)" tabindex="0">close</button>
             </div>
             {{ item[textKey] }}
           </div>
           <div v-if="showEdit && !disabled" class="rounded-full cursor-pointer w-6 h-6 mx-0.5 bg-bg flex items-center justify-center">
-            <span class="material-symbols text-white hover:text-success pt-px pr-px" style="font-size: 1.1rem" @click.stop="addItem">add</span>
+            <button type="button" :aria-label="$strings.ButtonAdd" class="material-symbols text-white hover:text-success focus:text-success pt-px pr-px" style="font-size: 1.1rem" @click.stop="addItem" @keydown.enter.stop="addItem" tabindex="0">add</button>
           </div>
-          <input v-show="!readonly" ref="input" v-model="textInput" :disabled="disabled" class="h-full bg-primary focus:outline-none px-1 w-6" @keydown="keydownInput" @focus="inputFocus" @blur="inputBlur" @paste="inputPaste" />
+          <input v-show="!readonly" v-model="textInput" ref="input" :id="identifier" :disabled="disabled" class="h-full bg-primary focus:outline-hidden px-1 w-6" @keydown="keydownInput" @focus="inputFocus" @blur="inputBlur" @paste="inputPaste" />
         </div>
       </form>
 
-      <ul ref="menu" v-show="showMenu" class="absolute z-60 w-full bg-bg border border-black-200 shadow-lg max-h-56 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm" role="listbox" aria-labelledby="listbox-label">
+      <ul ref="menu" v-show="showMenu" class="absolute z-60 w-full bg-bg border border-black-200 shadow-lg max-h-56 rounded-md py-1 text-base ring-1 ring-black/5 overflow-auto focus:outline-hidden sm:text-sm" role="listbox" aria-labelledby="listbox-label">
         <template v-for="item in itemsToShow">
           <li :key="item.id" class="text-gray-50 select-none relative py-2 pr-9 cursor-pointer hover:bg-black-400" :class="isMenuItemSelected(item) ? 'text-yellow-300' : ''" role="option" @click="clickedOption($event, item)" @mouseup.stop.prevent @mousedown.prevent>
             <div class="flex items-center">
@@ -65,6 +65,7 @@ export default {
       currentSearch: null,
       typingTimeout: null,
       isFocused: false,
+      inputFocused: false,
       menu: null,
       items: []
     }
@@ -84,9 +85,6 @@ export default {
         this.$emit('input', val)
       }
     },
-    userToken() {
-      return this.$store.getters['user/getToken']
-    },
     wrapperClass() {
       var classes = []
       if (this.disabled) classes.push('bg-black-300')
@@ -102,6 +100,9 @@ export default {
     },
     filterData() {
       return this.$store.state.libraries.filterData || {}
+    },
+    identifier() {
+      return Math.random().toString(36).substring(2)
     }
   },
   methods: {
@@ -113,6 +114,9 @@ export default {
     },
     getIsSelected(itemValue) {
       return !!this.selected.find((i) => i.id === itemValue)
+    },
+    setInputFocused(focused) {
+      this.inputFocused = focused
     },
     search() {
       if (!this.textInput) return
@@ -208,6 +212,10 @@ export default {
     inputBlur() {
       if (!this.isFocused) return
 
+      if (typeof this.textInput === 'string') {
+        this.textInput = this.textInput.trim()
+      }
+
       setTimeout(() => {
         if (document.activeElement === this.$refs.input) {
           return
@@ -224,6 +232,11 @@ export default {
     },
     forceBlur() {
       this.isFocused = false
+
+      if (typeof this.textInput === 'string') {
+        this.textInput = this.textInput.trim()
+      }
+
       if (this.textInput) this.submitForm()
       if (this.$refs.input) this.$refs.input.blur()
     },
@@ -282,11 +295,12 @@ export default {
       this.selectedMenuItemIndex = null
     },
     submitForm() {
-      if (!this.textInput) return
+      if (!this.textInput || !this.textInput.trim?.()) return
 
-      const cleaned = this.textInput.trim()
+      this.textInput = this.textInput.trim()
+
       const matchesItem = this.items.find((i) => {
-        return i.name === cleaned
+        return i.name === this.textInput
       })
 
       if (matchesItem) {

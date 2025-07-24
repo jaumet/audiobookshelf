@@ -24,7 +24,7 @@ class SearchController {
    */
   async findBooks(req, res) {
     const id = req.query.id
-    const libraryItem = await Database.libraryItemModel.getOldById(id)
+    const libraryItem = await Database.libraryItemModel.getExpandedById(id)
     const provider = req.query.provider || 'google'
     const title = req.query.title || ''
     const author = req.query.author || ''
@@ -108,12 +108,12 @@ class SearchController {
   async findChapters(req, res) {
     const asin = req.query.asin
     if (!isValidASIN(asin.toUpperCase())) {
-      return res.json({ error: 'Invalid ASIN' })
+      return res.json({ error: 'Invalid ASIN', stringKey: 'MessageInvalidAsin' })
     }
     const region = (req.query.region || 'us').toLowerCase()
     const chapterData = await BookFinder.findChapters(asin, region)
     if (!chapterData) {
-      return res.json({ error: 'Chapters not found' })
+      return res.json({ error: 'Chapters not found', stringKey: 'MessageChaptersNotFound' })
     }
     res.json(chapterData)
   }

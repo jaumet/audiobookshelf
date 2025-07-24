@@ -36,19 +36,19 @@
     </div>
     <div class="relative">
       <div class="relative text-center categoryPlacard transform z-30 top-0 left-4e md:left-8e w-44e rounded-md">
-        <div class="w-full h-full shinyBlack flex items-center justify-center rounded-sm border" :style="{ padding: `0em 0.5em` }">
-          <p :style="{ fontSize: 0.9 + 'em' }">{{ $strings[shelf.labelStringKey] }}</p>
+        <div class="w-full h-full shinyBlack flex items-center justify-center rounded-xs border" :style="{ padding: `0em 0.5em` }">
+          <h2 :style="{ fontSize: 0.9 + 'em' }">{{ $strings[shelf.labelStringKey] }}</h2>
         </div>
       </div>
 
       <div class="bookshelfDividerCategorized h-6e w-full absolute top-0 left-0 right-0 z-20"></div>
     </div>
-    <div v-show="canScrollLeft && !isScrolling" class="hidden sm:flex absolute top-0 left-0 w-32 pr-8 bg-black book-shelf-arrow-left items-center justify-center cursor-pointer opacity-0 hover:opacity-100 z-40" @click="scrollLeft">
+    <button v-show="canScrollLeft && !isScrolling" :aria-label="$strings.ButtonScrollLeft" class="hidden sm:flex absolute top-0 left-0 w-32 pr-8 bg-black book-shelf-arrow-left items-center justify-center cursor-pointer opacity-0 hover:opacity-100 z-40" @click="scrollLeft">
       <span class="material-symbols text-white" :style="{ fontSize: 3.75 + 'em' }">chevron_left</span>
-    </div>
-    <div v-show="canScrollRight && !isScrolling" class="hidden sm:flex absolute top-0 right-0 w-32 pl-8 bg-black book-shelf-arrow-right items-center justify-center cursor-pointer opacity-0 hover:opacity-100 z-40" @click="scrollRight">
+    </button>
+    <button v-show="canScrollRight && !isScrolling" :aria-label="$strings.ButtonScrollRight" class="hidden sm:flex absolute top-0 right-0 w-32 pl-8 bg-black book-shelf-arrow-right items-center justify-center cursor-pointer opacity-0 hover:opacity-100 z-40" @click="scrollRight">
       <span class="material-symbols text-white" :style="{ fontSize: 3.75 + 'em' }">chevron_right</span>
-    </div>
+    </button>
   </div>
 </template>
 
@@ -99,6 +99,7 @@ export default {
       this.$store.commit('showEditModal', libraryItem)
     },
     editEpisode({ libraryItem, episode }) {
+      this.$store.commit('setEpisodeTableEpisodeIds', [episode.id])
       this.$store.commit('setSelectedLibraryItem', libraryItem)
       this.$store.commit('globals/setSelectedEpisode', episode)
       this.$store.commit('globals/setShowEditPodcastEpisodeModal', true)

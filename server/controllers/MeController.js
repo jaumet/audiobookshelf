@@ -66,7 +66,7 @@ class MeController {
     const libraryItem = await Database.libraryItemModel.findByPk(req.params.libraryItemId)
     const episode = await Database.podcastEpisodeModel.findByPk(req.params.episodeId)
 
-    if (!libraryItem || (libraryItem.mediaType === 'podcast' && !episode)) {
+    if (!libraryItem || (libraryItem.isPodcast && !episode)) {
       Logger.error(`[MeController] Media item not found for library item id "${req.params.libraryItemId}"`)
       return res.sendStatus(404)
     }
@@ -273,12 +273,24 @@ class MeController {
    * @param {RequestWithUser} req
    * @param {Response} res
    */
-  updatePassword(req, res) {
+  async updatePassword(req, res) {
     if (req.user.isGuest) {
       Logger.error(`[MeController] Guest user "${req.user.username}" attempted to change password`)
-      return res.sendStatus(500)
+      return res.sendStatus(403)
     }
-    this.auth.userChangePassword(req, res)
+
+    const { password, newPassword } = req.body
+    if ((typeof password !== 'string' && password !== null) || (typeof newPassword !== 'string' && newPassword !== null)) {
+      return res.status(400).send('Missing or invalid password or new password')
+    }
+
+    const result = await this.auth.localAuthStrategy.changePassword(req.user, password, newPassword)
+
+    if (result.error) {
+      return res.status(400).send(result.error)
+    }
+
+    res.sendStatus(200)
   }
 
   /**
@@ -296,7 +308,7 @@ class MeController {
     const mediaProgressesInProgress = req.user.mediaProgresses.filter((mp) => !mp.isFinished && (mp.currentTime > 0 || mp.ebookProgress > 0))
 
     const libraryItemsIds = [...new Set(mediaProgressesInProgress.map((mp) => mp.extraData?.libraryItemId).filter((id) => id))]
-    const libraryItems = await Database.libraryItemModel.getAllOldLibraryItems({ id: libraryItemsIds })
+    const libraryItems = await Database.libraryItemModel.findAllExpandedWhere({ id: libraryItemsIds })
 
     let itemsInProgress = []
 
@@ -304,19 +316,19 @@ class MeController {
       const oldMediaProgress = mediaProgress.getOldMediaProgress()
       const libraryItem = libraryItems.find((li) => li.id === oldMediaProgress.libraryItemId)
       if (libraryItem) {
-        if (oldMediaProgress.episodeId && libraryItem.mediaType === 'podcast') {
-          const episode = libraryItem.media.episodes.find((ep) => ep.id === oldMediaProgress.episodeId)
+        if (oldMediaProgress.episodeId && libraryItem.isPodcast) {
+          const episode = libraryItem.media.podcastEpisodes.find((ep) => ep.id === oldMediaProgress.episodeId)
           if (episode) {
             const libraryItemWithEpisode = {
-              ...libraryItem.toJSONMinified(),
-              recentEpisode: episode.toJSON(),
+              ...libraryItem.toOldJSONMinified(),
+              recentEpisode: episode.toOldJSON(libraryItem.id),
               progressLastUpdate: oldMediaProgress.lastUpdate
             }
             itemsInProgress.push(libraryItemWithEpisode)
           }
         } else if (!oldMediaProgress.episodeId) {
           itemsInProgress.push({
-            ...libraryItem.toJSONMinified(),
+            ...libraryItem.toOldJSONMinified(),
             progressLastUpdate: oldMediaProgress.lastUpdate
           })
         }

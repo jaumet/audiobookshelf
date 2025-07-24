@@ -37,6 +37,48 @@ Vue.prototype.$elapsedPretty = (seconds, useFullNames = false, useMilliseconds =
   return `${hours} ${useFullNames ? `hour${hours === 1 ? '' : 's'}` : 'hr'} ${minutes} ${useFullNames ? `minute${minutes === 1 ? '' : 's'}` : 'min'}`
 }
 
+Vue.prototype.$elapsedPrettyLocalized = (seconds, useFullNames = false, useMilliseconds = false) => {
+  if (isNaN(seconds) || seconds === null) return ''
+
+  try {
+    const df = new Intl.DurationFormat(Vue.prototype.$languageCodes.current, {
+      style: useFullNames ? 'long' : 'short'
+    })
+
+    const duration = {}
+
+    if (seconds < 60) {
+      if (useMilliseconds && seconds < 1) {
+        duration.milliseconds = Math.floor(seconds * 1000)
+      } else {
+        duration.seconds = Math.floor(seconds)
+      }
+    } else if (seconds < 3600) {
+      // 1 hour
+      duration.minutes = Math.floor(seconds / 60)
+    } else if (seconds < 86400) {
+      // 1 day
+      duration.hours = Math.floor(seconds / 3600)
+      const minutes = Math.floor((seconds % 3600) / 60)
+      if (minutes > 0) {
+        duration.minutes = minutes
+      }
+    } else {
+      duration.days = Math.floor(seconds / 86400)
+      const hours = Math.floor((seconds % 86400) / 3600)
+      if (hours > 0) {
+        duration.hours = hours
+      }
+    }
+
+    return df.format(duration)
+  } catch (error) {
+    // Handle not supported
+    console.warn('Intl.DurationFormat not supported, not localizing duration')
+    return Vue.prototype.$elapsedPretty(seconds, useFullNames, useMilliseconds)
+  }
+}
+
 Vue.prototype.$secondsToTimestamp = (seconds, includeMs = false, alwaysIncludeHours = false) => {
   if (!seconds) {
     return alwaysIncludeHours ? '00:00:00' : '0:00'
@@ -69,15 +111,20 @@ Vue.prototype.$elapsedPrettyExtended = (seconds, useDays = true, showSeconds = t
   let hours = Math.floor(minutes / 60)
   minutes -= hours * 60
 
+  // Handle rollovers before days calculation
+  if (minutes && seconds && !showSeconds) {
+    if (seconds >= 30) minutes++
+    if (minutes >= 60) {
+      hours++ // Increment hours if minutes roll over
+      minutes -= 60 // adjust minutes
+    }
+  }
+
+  // Now calculate days with the final hours value
   let days = 0
   if (useDays || Math.floor(hours / 24) >= 100) {
     days = Math.floor(hours / 24)
     hours -= days * 24
-  }
-
-  // If not showing seconds then round minutes up
-  if (minutes && seconds && !showSeconds) {
-    if (seconds >= 30) minutes++
   }
 
   const strs = []
@@ -88,7 +135,7 @@ Vue.prototype.$elapsedPrettyExtended = (seconds, useDays = true, showSeconds = t
   return strs.join(' ')
 }
 
-Vue.prototype.$parseCronExpression = (expression) => {
+Vue.prototype.$parseCronExpression = (expression, context) => {
   if (!expression) return null
   const pieces = expression.split(' ')
   if (pieces.length !== 5) {
@@ -97,31 +144,31 @@ Vue.prototype.$parseCronExpression = (expression) => {
 
   const commonPatterns = [
     {
-      text: 'Every 12 hours',
+      text: context.$strings.LabelIntervalEvery12Hours,
       value: '0 */12 * * *'
     },
     {
-      text: 'Every 6 hours',
+      text: context.$strings.LabelIntervalEvery6Hours,
       value: '0 */6 * * *'
     },
     {
-      text: 'Every 2 hours',
+      text: context.$strings.LabelIntervalEvery2Hours,
       value: '0 */2 * * *'
     },
     {
-      text: 'Every hour',
+      text: context.$strings.LabelIntervalEveryHour,
       value: '0 * * * *'
     },
     {
-      text: 'Every 30 minutes',
+      text: context.$strings.LabelIntervalEvery30Minutes,
       value: '*/30 * * * *'
     },
     {
-      text: 'Every 15 minutes',
+      text: context.$strings.LabelIntervalEvery15Minutes,
       value: '*/15 * * * *'
     },
     {
-      text: 'Every minute',
+      text: context.$strings.LabelIntervalEveryMinute,
       value: '* * * * *'
     }
   ]
@@ -142,7 +189,7 @@ Vue.prototype.$parseCronExpression = (expression) => {
     return null
   }
 
-  const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const weekdays = context.$getDaysOfWeek()
   var weekdayText = 'day'
   if (pieces[4] !== '*')
     weekdayText = pieces[4]
@@ -151,7 +198,7 @@ Vue.prototype.$parseCronExpression = (expression) => {
       .join(', ')
 
   return {
-    description: `Run every ${weekdayText} at ${pieces[1]}:${pieces[0].padStart(2, '0')}`
+    description: context.$getString('MessageScheduleRunEveryWeekdayAtTime', [weekdayText, `${pieces[1]}:${pieces[0].padStart(2, '0')}`])
   }
 }
 
